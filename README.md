@@ -46,6 +46,12 @@ Error Trigger → Parsear Error → Sheets Errores_Tecnicos → Discord #errores
 
 ---
 
+## Vista del Flujo en n8n
+
+![Flujo completo en n8n](./Prueba_1_reclamo_-_n8n.png)
+
+---
+
 ## Estructura de Archivos
 
 ```
@@ -143,6 +149,39 @@ Para crear el webhook: **Editar canal → Integraciones → Webhooks → Nuevo W
 | 4 | Mensaje forzado a fallback | Discord #fallback · Sheets Fallback · happy_path NO |
 | 5 | Solo un punto "." | Mensaje inválido · bot avisa al cliente · flujo se detiene |
 | 6 | Solo emojis | Mensaje inválido · bot avisa al cliente · flujo se detiene |
+
+---
+
+## Prueba 1 — Reclamo
+
+| Telegram | Discord #reclamos |
+|---|---|
+| ![Telegram reclamo](./Prueba_1_reclamo_-_telegram.png) | ![Discord reclamo](./Prueba_1_reclamo_-_discord.png) |
+
+**Google Sheets — Log:**
+![Sheet reclamo](./Prueba_1_reclamo_-_sheet.png)
+
+---
+
+## Prueba 2 — Consulta Preventa
+
+| Telegram | Discord #preventa |
+|---|---|
+| ![Telegram preventa](./Prueba_2_preventa_-_telegram.png) | ![Discord preventa](./Prueba_2_preventa_-_discord.png) |
+
+**Google Sheets — Log:**
+![Sheet preventa](./Prueba_2_preventa_-_sheet.png)
+
+---
+
+## Prueba 3 — Fallback
+
+| Telegram | Discord #fallback |
+|---|---|
+| ![Telegram fallback](./Prueba_3_fallback_-_telegram.png) | ![Discord fallback](./Prueba_3_fallback_-_discord.png) |
+
+**Google Sheets — Fallback:**
+![Sheet fallback](./Prueba_3_fallback_-_sheet.png)
 
 ---
 
