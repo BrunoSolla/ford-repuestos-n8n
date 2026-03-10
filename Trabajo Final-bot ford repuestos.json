@@ -1,0 +1,1833 @@
+{
+  "name": "Trabajo Final - bot ford repuestos",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "562c073a-4afb-4ee0-a7df-f347ae316e83",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1424,
+        48
+      ],
+      "webhookId": "ford-telegram-trigger",
+      "credentials": {
+        "telegramApi": {
+          "id": "5csC4fuCSoTS7NUS",
+          "name": "Telegram account"
+        }
+      },
+      "notes": "CONFIGURACIÓN: En @BotFather creá un nuevo bot con /newbot. Copiá el token y configurá la credential 'Telegram API' en n8n con ese token."
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.first().json;\n\nconst texto = msg?.message?.text || msg?.message?.caption || '';\n\nconst from = msg?.message?.from || {};\nconst chat = msg?.message?.chat || {};\n\nconst nombre_cliente = [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || 'Cliente Desconocido';\nconst chat_id = String(chat.id || from.id || '');\nconst username = from.username ? '@' + from.username : 'sin_usuario';\nconst mensaje_id = String(msg?.message?.message_id || '');\n\nconst textoLimpio = texto.trim();\nconst textoSinEmojis = textoLimpio.replace(/[\\u{1F000}-\\u{1FFFF}]/gu, '').trim();\nconst esMuyCorto = textoSinEmojis.length < 3;\nconst esSoloPuntuacion = /^[.,!?;:\\-_*#@%&/\\\\]+$/.test(textoLimpio);\nconst esSoloEmojis = textoSinEmojis.length === 0 && textoLimpio.length > 0;\n\nif (!textoLimpio || textoLimpio === '' || esMuyCorto || esSoloPuntuacion || esSoloEmojis) {\n  return {\n    valido: false,\n    chat_id,\n    nombre_cliente,\n    username,\n    mensaje: '',\n    mensaje_id,\n    fecha: new Date().toISOString(),\n    error: 'Mensaje no válido — muy corto, solo puntuación o solo emojis'\n  };\n}\n\nreturn {\n  valido: true,\n  chat_id,\n  nombre_cliente,\n  username,\n  mensaje: textoLimpio,\n  mensaje_id,\n  fecha: new Date().toISOString(),\n  canal: 'Telegram'\n};"
+      },
+      "id": "634da502-961d-4d86-b221-a92b668171b7",
+      "name": "Preparar Datos del Mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1216,
+        48
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.valido }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "id": "3a7453ab-c51e-4f7a-8ef0-3289d51559d1"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "14380b18-1ce8-42df-a863-d749fdd66491",
+      "name": "¿Mensaje válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -992,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "Hola! 👋 No pude leer tu mensaje. Por favor escribí tu consulta en texto.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "5969fe19-84c1-4586-ab02-448cd6cd241b",
+      "name": "Telegram — Mensaje Vacío",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -816,
+        272
+      ],
+      "webhookId": "4744ae96-7c4b-4cfb-9836-f855fea80f63",
+      "credentials": {
+        "telegramApi": {
+          "id": "5csC4fuCSoTS7NUS",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.mensaje }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Eres un asistente de clasificación para una empresa de repuestos \nautomotores Ford. Tu tarea es analizar el mensaje de un cliente y \nclasificarlo en una de estas tres categorías:\n\n- \"reclamo\": El cliente ya RECIBIÓ algo y tiene un problema \n  concreto. Pieza incorrecta, pieza rota, quiere devolver, \n  está molesto o disconforme con algo que ya tiene en sus manos.\n- \"consulta_preventa\": El cliente quiere información ANTES de \n  comprar. Pregunta por compatibilidad de piezas, precios, stock \n  disponible, especificaciones técnicas, si una pieza sirve para \n  su vehículo, o quiere hacer un pedido NUEVO. NO entra acá si \n  el cliente menciona que ya realizó una compra.\n- \"seguimiento\": El cliente ya compró pero todavía no recibió \n  o no sabe el estado. Incluye mensajes ambiguos como \n  \"me pueden ayudar con una compra\" donde no hay queja concreta. \n  Ante la duda entre seguimiento y reclamo, usá seguimiento.\n\nResponde ÚNICAMENTE con un JSON válido, sin texto adicional, sin \nmarkdown, sin explicaciones. El formato debe ser exactamente este:\n{\"categoria\": \"reclamo\", \"urgencia\": \"alta\", \"resumen\": \"Breve \nresumen del mensaje en máximo 20 palabras\"}\n\nValores posibles para urgencia: \"alta\" (cliente muy molesto o \nproblema grave), \"media\" (consulta normal), \"baja\" (seguimiento \no info general)."
+            }
+          ]
+        }
+      },
+      "id": "d9670c6c-b674-4afb-8dd5-5ab49257b39f",
+      "name": "LLM #1 — Clasificador",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        -816,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {
+          "maxTokensToSample": 150,
+          "temperature": 0.1
+        }
+      },
+      "id": "149ed5e5-ce7d-4359-8a10-d2bf85bb9cdb",
+      "name": "Groq — Llama3 Clasificador",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -816,
+        128
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "y1h5SSNeqNvjUONC",
+          "name": "Groq account"
+        }
+      },
+      "notes": "Temperature 0.1 = respuestas muy deterministas. Necesario para que el Switch funcione correctamente."
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst raw = input.text || input.output || input.response || '';\n\nconst datosOriginales = {\n  chat_id: $('Preparar Datos del Mensaje').item.json.chat_id,\n  nombre_cliente: $('Preparar Datos del Mensaje').item.json.nombre_cliente,\n  username: $('Preparar Datos del Mensaje').item.json.username,\n  mensaje: $('Preparar Datos del Mensaje').item.json.mensaje,\n  mensaje_id: $('Preparar Datos del Mensaje').item.json.mensaje_id,\n  fecha: $('Preparar Datos del Mensaje').item.json.fecha,\n  canal: $('Preparar Datos del Mensaje').item.json.canal\n};\n\nlet clasificacion = {};\nconst categoriasValidas = ['reclamo', 'consulta_preventa', 'seguimiento'];\n\ntry {\n  let cleaned = raw\n    .replace(/```json/gi, '')\n    .replace(/```/g, '')\n    .replace(/^[^{]*/s, '') \n    .replace(/[^}]*$/s, '')\n    .trim();\n\n  const start = cleaned.indexOf('{');\n  const end = cleaned.lastIndexOf('}');\n  if (start !== -1 && end !== -1) {\n    cleaned = cleaned.substring(start, end + 1);\n  }\n\n  clasificacion = JSON.parse(cleaned);\n\n  if (!categoriasValidas.includes(clasificacion.categoria)) {\n    clasificacion.categoria = 'fallback';\n  }\n\n} catch (e) {\n  clasificacion = {\n    categoria: 'fallback',\n    urgencia: 'media',\n    resumen: 'Error al clasificar el mensaje'\n  };\n}\n\nreturn {\n  ...datosOriginales,\n  categoria: clasificacion.categoria || 'fallback',\n  urgencia: clasificacion.urgencia || 'media',\n  resumen_llm: clasificacion.resumen || 'Sin resumen',\n  raw_llm_clasificador: raw\n};"
+      },
+      "id": "e4812975-e922-449f-a84a-3e0c433a872f",
+      "name": "Parsear Clasificación",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "reclamo",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "ac6e87b8-1f31-4923-87a8-e73864d22c8b"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Reclamo"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "consulta_preventa",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "00d72575-822f-4fba-a066-863cc221b905"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Preventa"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "seguimiento",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "41beaf3d-941a-4b72-b6d6-fd4a6f6526fe"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Seguimiento"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "f2176d12-79d2-4088-bf0e-5ab6218d16f3",
+      "name": "Switch — Tipo de Mensaje",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -400,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.mensaje }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Eres el asistente de atención al cliente de Ford Repuestos, una tienda especializada en repuestos automotores Ford que opera en Mercado Libre y WhatsApp.\n\nLos números de pedido de Mercado Libre tienen entre 10 y 12 dígitos numéricos, por ejemplo: 2012345678901. Si no ves un número con esas características en el mensaje del cliente, pedíselo amablemente.\n\nRedactá una respuesta que:\n1. Se disculpe sinceramente por el inconveniente\n2. Demuestre que entendés su problema\n3. Informe que el caso fue escalado al equipo de logística con PRIORIDAD y recibirá respuesta en menos de 24 horas hábiles\n4. Si no encontrás un número de pedido de 10 a 12 dígitos en el mensaje, pedíselo amablemente\n5. Cerrá con un mensaje positivo y de compromiso\n\nEl mensaje debe sonar humano, cercano y argentino. Nada de frases corporativas como \"entendemos tu frustración\" o \"nos comprometemos a brindarte la mejor experiencia\". Hablale de vos, no de usted. Responde en plural, nosotros. Máximo 4 oraciones cortas.\n\nEl tono debe adaptarse a la gravedad del mensaje:\n- Si el cliente está muy molesto → empezá disculpándote\n- Si el cliente es neutro o simplemente pide ayuda → \n  empezá saludando y ofreciendo ayuda, sin disculpas exageradas\n\nNUNCA copies frases genéricas. Respondé específicamente \na lo que dijo el cliente. Si el mensaje es tranquilo, \nla respuesta también debe serlo.\n\nResponde ÚNICAMENTE con JSON válido, sin markdown, sin texto extra:\n{\"respuesta_cliente\": \"Texto completo para enviar al cliente\", \"accion_interna\": \"Qué debe hacer el equipo: ej: verificar pedido X, contactar logística, revisar envío\"}"
+            }
+          ]
+        }
+      },
+      "id": "1f85d950-9dbc-4e53-bcab-c845a30f9476",
+      "name": "LLM #2A — Respuesta Reclamo",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        -176,
+        -496
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {
+          "maxTokensToSample": 400,
+          "temperature": 0.5
+        }
+      },
+      "id": "088ec62d-43fe-4b0f-ba80-c42a77d53664",
+      "name": "Groq — Llama3 Reclamo",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        -336
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "y1h5SSNeqNvjUONC",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst raw = input.text || input.output || '';\nlet resultado = {};\ntry {\n  let cleaned = raw.replace(/```json/gi,'').replace(/```/g,'').trim();\n  const s = cleaned.indexOf('{'), e = cleaned.lastIndexOf('}');\n  if (s !== -1 && e !== -1) cleaned = cleaned.substring(s, e+1);\n  resultado = JSON.parse(cleaned);\n} catch(err) {\n  resultado = { respuesta_cliente: 'Lamentamos el inconveniente. Nuestro equipo revisará tu caso y te contactará en menos de 24 horas.', accion_interna: 'Revisar manualmente - error en LLM' };\n}\nreturn {\n  ...input,\n  respuesta_cliente: resultado.respuesta_cliente || '',\n  accion_interna: resultado.accion_interna || '',\n  raw_llm_respuesta: raw\n};"
+      },
+      "id": "07587bfe-29f8-4ff2-b5c8-3614dbcb8b10",
+      "name": "Parsear Respuesta Reclamo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        -496
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Preparar Datos del Mensaje').item.json.chat_id }}",
+        "text": "={{ $json.respuesta_cliente }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "b98bc0f2-3ea1-4f6f-9e15-602a08f2ced7",
+      "name": "Telegram — Responder a Cliente (Reclamo)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        416,
+        -496
+      ],
+      "webhookId": "e7680ad1-e4f5-4130-ac6c-9dc2e0965168",
+      "credentials": {
+        "telegramApi": {
+          "id": "5csC4fuCSoTS7NUS",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8",
+          "mode": "list",
+          "cachedResultName": "base bot escobar ford",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Logs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha": "={{ $('Preparar Datos del Mensaje').item.json.fecha }}",
+            "canal": "={{ $('Preparar Datos del Mensaje').item.json.canal}}",
+            "nombre_cliente": "={{ $('Preparar Datos del Mensaje').item.json.nombre_cliente }}",
+            "username_telegram": "={{ $('Preparar Datos del Mensaje').item.json.username }}",
+            "chat_id": "={{ $('Preparar Datos del Mensaje').item.json.chat_id }}",
+            "mensaje_original": "={{ $('Preparar Datos del Mensaje').item.json.mensaje }}",
+            "categoria": "={{ $('Parsear Clasificación').item.json.categoria }}\n",
+            "urgencia": "={{ $('Parsear Clasificación').item.json.urgencia }}",
+            "resumen_ia": "={{ $('Parsear Clasificación').item.json.resumen_llm }}",
+            "respuesta_enviada": "={{ $('Parsear Respuesta Reclamo').item.json.respuesta_cliente }}",
+            "accion_interna": "={{ $('Parsear Respuesta Reclamo').item.json.accion_interna }}",
+            "estado": "🔴 URGENTE — PENDIENTE",
+            "happy_path": "SI"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "canal",
+              "displayName": "canal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nombre_cliente",
+              "displayName": "nombre_cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "username_telegram",
+              "displayName": "username_telegram",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "mensaje_original",
+              "displayName": "mensaje_original",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "categoria",
+              "displayName": "categoria",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "urgencia",
+              "displayName": "urgencia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "resumen_ia",
+              "displayName": "resumen_ia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "respuesta_enviada",
+              "displayName": "respuesta_enviada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "accion_interna",
+              "displayName": "accion_interna",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "happy_path",
+              "displayName": "happy_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "966bc438-0024-4a61-98cd-00e6b5955cb8",
+      "name": "Sheets — Log Reclamo",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        640,
+        -496
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xpJOgnVZ0DROYL2p",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "CONFIGURACIÓN: Creá una hoja llamada 'Logs' con estas columnas: fecha, canal, nombre_cliente, username_telegram, chat_id, mensaje_original, categoria, urgencia, resumen_ia, respuesta_enviada, accion_interna, estado, happy_path"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.mensaje }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Eres el asistente de preventa de Ford Repuestos. El cliente está consultando sobre una pieza o repuesto antes de comprar.\n\nAntes de responder, identificá qué tipo de consulta es:\n- Si pregunta si una pieza SIRVE para su vehículo → es consulta de COMPATIBILIDAD\n- Si pregunta si hay stock o cuándo puede recibirlo → es consulta de DISPONIBILIDAD\n- Si pregunta precio → es consulta de PRECIO\nMencioná en la respuesta exactamente qué vas a verificar según \nlo que preguntó el cliente.\n\nTu tarea es:\n1. Agradecerle brevemente por contactarse\n2. Si el cliente NO proporcionó el número de chasis (VIN) y/o el modelo/año del vehículo, pedirle esos datos. El chasis lo necesitamos sí o sí — es un código de 17 dígitos que está en la tarjeta verde del vehículo o en la póliza del seguro\n3. Si ya proporcionó los datos, confirmar que verificarás lo que pidió (compatibilidad / disponibilidad / precio) y responderás a la brevedad\n4. Cerrar con algo simple y amigable\n\nTono: cercano, argentino, informal pero no demasiado — nada de \"che\", \"boludo\", ni lunfardo exagerado. Como si fuera un empleado joven y \nsimpático, no un amigo del barrio. Hablale de vos. Respondé en plural (nosotros). Máximo 4 oraciones cortas. \n\nNADA de frases como \"ansiosos por ayudarte\", \"estamos comprometidos\", \"será un placer\", ni cualquier frase corporativa. Tiene que sonar \ncomo una persona real, no un bot de empresa.\n\nResponde ÚNICAMENTE con JSON válido, sin markdown, sin texto extra:\n{\"respuesta_cliente\": \"Texto para enviar al cliente\", \n\"tipo_consulta\": \"compatibilidad / disponibilidad / precio / mixta\",\n\"datos_provistos\": \"qué información del vehículo ya dio o 'ninguno'\", \n\"datos_faltantes\": [\"modelo\", \"año\", \"chasis\"]}"
+            }
+          ]
+        }
+      },
+      "id": "39537a9f-06d6-44df-aeaa-69de9ac1c6d5",
+      "name": "LLM #2B — Respuesta Preventa",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        -176,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {
+          "maxTokensToSample": 400,
+          "temperature": 0.5
+        }
+      },
+      "id": "62f3e06b-f0d9-41da-aaeb-e02eecc9e0ed",
+      "name": "Groq — Llama3 Preventa",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        48
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "y1h5SSNeqNvjUONC",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Preparar Datos del Mensaje').item.json.chat_id }}",
+        "text": "={{ $json.respuesta_cliente }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "9b705137-1ed0-4c36-a3cd-946293e30e72",
+      "name": "Telegram — Responder a Cliente (Preventa)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        416,
+        -128
+      ],
+      "webhookId": "60a27498-beed-481a-81f5-a27b012dd511",
+      "credentials": {
+        "telegramApi": {
+          "id": "5csC4fuCSoTS7NUS",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.mensaje }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Eres el asistente de postventa de Ford Repuestos. El cliente ya realizó una compra y está consultando sobre el estado de su pedido o envío.\n\nLos números de pedido de Mercado Libre tienen entre 10 y 12 dígitos numéricos, por ejemplo: 2012345678901. Si encontrás un número con esas características en el mensaje, guardalo. Si no lo encontrás, pedíselo amablemente.\n\nRedactá un mensaje que:\n1. Confirme la recepción de su consulta\n2. Le informe que el equipo verificará el estado de su envío y le responderá en menos de 2 horas hábiles\n3. Si no encontrás un número de pedido de 10 a 12 dígitos en el mensaje, pedíselo para agilizar la consulta\n4. Agradecé su confianza en Ford Repuestos\n\nTono: tranquilizador, eficiente, argentino. Hablale de vos. Respondé en plural (nosotros). Máximo 4 oraciones cortas. Informal pero no exagerado — como un empleado joven y simpático, no un amigo del barrio. Nada de frases corporativas.\n\nResponde ÚNICAMENTE con JSON válido, sin markdown, sin texto extra:\n{\"respuesta_cliente\": \"Texto para enviar al cliente\", \"numero_pedido\": \"el número si lo proporcionó o 'no proporcionado'\"}"
+            }
+          ]
+        }
+      },
+      "id": "b69b35c2-d499-45f7-8719-5eb65d7b43c1",
+      "name": "LLM #2C — Respuesta Seguimiento",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        -160,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {
+          "maxTokensToSample": 300,
+          "temperature": 0.4
+        }
+      },
+      "id": "956cfb7f-8e30-443a-ac9f-fa0833346445",
+      "name": "Groq — Llama3 Seguimiento",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        384
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "y1h5SSNeqNvjUONC",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst raw = input.text || input.output || '';\nlet resultado = {};\ntry {\n  let cleaned = raw.replace(/```json/gi,'').replace(/```/g,'').trim();\n  const s = cleaned.indexOf('{'), e = cleaned.lastIndexOf('}');\n  if (s !== -1 && e !== -1) cleaned = cleaned.substring(s, e+1);\n  resultado = JSON.parse(cleaned);\n} catch(err) {\n  resultado = { \n    respuesta_cliente: 'Recibimos tu consulta. Vamos a verificar el estado de tu envío y te respondemos en menos de 2 horas hábiles. Si podés pasarnos el número de pedido de ML nos ayuda a agilizarlo.',\n    numero_pedido: 'no proporcionado'\n  };\n}\nreturn {\n  ...input,\n  respuesta_cliente: resultado.respuesta_cliente || '',\n  numero_pedido: resultado.numero_pedido || 'no proporcionado',\n  raw_llm_respuesta: raw\n};"
+      },
+      "id": "1753020a-bc1e-4b27-80b3-cde0e73cc0b8",
+      "name": "Parsear Respuesta Seguimiento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Preparar Datos del Mensaje').item.json.chat_id }}",
+        "text": "={{ $json.respuesta_cliente }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "5c263e91-cf3b-4fce-b80e-ad6ddd78a3e1",
+      "name": "Telegram — Responder a Cliente (Seguimiento)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        416,
+        208
+      ],
+      "webhookId": "6f63131a-ffb2-4353-af11-2fb34ee19c76",
+      "credentials": {
+        "telegramApi": {
+          "id": "5csC4fuCSoTS7NUS",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8",
+          "mode": "list",
+          "cachedResultName": "base bot escobar ford",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1499929984,
+          "mode": "list",
+          "cachedResultName": "Fallback",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8/edit#gid=1499929984"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha": "={{ $('Preparar Datos del Mensaje').item.json.fecha }}",
+            "canal": "={{ $('Preparar Datos del Mensaje').item.json.canal }}",
+            "nombre_cliente": "={{ $('Preparar Datos del Mensaje').item.json.nombre_cliente }}",
+            "username_telegram": "={{ $('Preparar Datos del Mensaje').item.json.username }}",
+            "chat_id": "={{ $('Preparar Datos del Mensaje').item.json.chat_id }}",
+            "mensaje_original": "={{ $('Preparar Datos del Mensaje').item.json.mensaje }}",
+            "categoria": "NO CLASIFICADO",
+            "resumen_ia": "={{ $('Parsear Clasificación').item.json.resumen_llm }}",
+            "respuesta_llm_cruda": "={{ $('Parsear Clasificación').item.json.raw_llm_clasificador }}",
+            "estado": "⚪ ERROR — REVISION MANUAL",
+            "happy_path": "NO"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "canal",
+              "displayName": "canal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nombre_cliente",
+              "displayName": "nombre_cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "username_telegram",
+              "displayName": "username_telegram",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "mensaje_original",
+              "displayName": "mensaje_original",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "categoria",
+              "displayName": "categoria",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "resumen_ia",
+              "displayName": "resumen_ia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "respuesta_llm_cruda",
+              "displayName": "respuesta_llm_cruda",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "happy_path",
+              "displayName": "happy_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "637f660e-32aa-4e0a-9dea-e620dfe17759",
+      "name": "Sheets — Log Error/Fallback",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        -160,
+        576
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xpJOgnVZ0DROYL2p",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "¡Hola! 👋 Recibimos tu mensaje y lo estamos procesando. Un miembro de nuestro equipo te responderá a la brevedad. ¡Gracias por contactarte con Ford Repuestos!",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "af8a1fca-3840-41d6-a194-385541dc0ee9",
+      "name": "Telegram — Responder a Cliente (Fallback)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        80,
+        576
+      ],
+      "webhookId": "f953d1ef-e168-447d-a11e-d302f8f97170",
+      "credentials": {
+        "telegramApi": {
+          "id": "5csC4fuCSoTS7NUS",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1424,
+        592
+      ],
+      "id": "2246a2fe-3027-4b61-b149-9adca2e708a5",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst raw = input.text || input.output || '';\nlet resultado = {};\ntry {\n  let cleaned = raw.replace(/```json/gi,'').replace(/```/g,'').trim();\n  const s = cleaned.indexOf('{'), e = cleaned.lastIndexOf('}');\n  if (s !== -1 && e !== -1) cleaned = cleaned.substring(s, e+1);\n  resultado = JSON.parse(cleaned);\n} catch(err) {\n  resultado = { \n    respuesta_cliente: 'Hola! Gracias por contactarte. Para ayudarte necesitamos el modelo, año y número de chasis de tu vehículo.',\n    tipo_consulta: 'desconocido',\n    datos_provistos: 'ninguno',\n    datos_faltantes: ['modelo', 'año', 'chasis'],\n    numero_chasis: 'no proporcionado'\n  };\n}\nreturn {\n  ...input,\n  respuesta_cliente: resultado.respuesta_cliente || '',\n  tipo_consulta: resultado.tipo_consulta || 'desconocido',\n  datos_provistos: resultado.datos_provistos || 'ninguno',\n  datos_faltantes: Array.isArray(resultado.datos_faltantes) \n    ? resultado.datos_faltantes.join(', ') \n    : '',\n  numero_chasis: resultado.numero_chasis || 'no proporcionado',\n  raw_llm_respuesta: raw\n};"
+      },
+      "id": "13b19525-4957-4517-93c1-07efe1985366",
+      "name": "Parsear Respuesta Preventa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8",
+          "mode": "list",
+          "cachedResultName": "base bot escobar ford",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Logs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha": "={{ $('Preparar Datos del Mensaje').item.json.fecha }}",
+            "canal": "={{ $('Preparar Datos del Mensaje').item.json.canal}}",
+            "nombre_cliente": "={{ $('Preparar Datos del Mensaje').item.json.nombre_cliente }}",
+            "username_telegram": "={{ $('Preparar Datos del Mensaje').item.json.username }}",
+            "chat_id": "={{ $('Preparar Datos del Mensaje').item.json.chat_id }}",
+            "mensaje_original": "={{ $('Preparar Datos del Mensaje').item.json.mensaje }}",
+            "categoria": "={{ $('Parsear Clasificación').item.json.categoria }}",
+            "urgencia": "={{ $('Parsear Clasificación').item.json.urgencia }}",
+            "resumen_ia": "={{ $('Parsear Clasificación').item.json.resumen_llm }}",
+            "respuesta_enviada": "={{ $('Parsear Respuesta Preventa').item.json.respuesta_cliente }}",
+            "accion_interna": "={{ $('Parsear Respuesta Preventa').item.json.datos_faltantes }}",
+            "estado": "🟡 PENDIENTE RESPUESTA CLIENTE",
+            "happy_path": "SI"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "canal",
+              "displayName": "canal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nombre_cliente",
+              "displayName": "nombre_cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "username_telegram",
+              "displayName": "username_telegram",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "mensaje_original",
+              "displayName": "mensaje_original",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "categoria",
+              "displayName": "categoria",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "urgencia",
+              "displayName": "urgencia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "resumen_ia",
+              "displayName": "resumen_ia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "respuesta_enviada",
+              "displayName": "respuesta_enviada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "accion_interna",
+              "displayName": "accion_interna",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "happy_path",
+              "displayName": "happy_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "f68d6f6f-4dbd-4223-b7ab-c8ead18f9c9a",
+      "name": "Sheets — Log Preventa",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        656,
+        -128
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xpJOgnVZ0DROYL2p",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "CONFIGURACIÓN: Creá una hoja llamada 'Logs' con estas columnas: fecha, canal, nombre_cliente, username_telegram, chat_id, mensaje_original, categoria, urgencia, resumen_ia, respuesta_enviada, accion_interna, estado, happy_path"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8",
+          "mode": "list",
+          "cachedResultName": "base bot escobar ford",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Logs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha": "={{ $('Preparar Datos del Mensaje').item.json.fecha }}",
+            "canal": "={{ $('Preparar Datos del Mensaje').item.json.canal}}",
+            "nombre_cliente": "={{ $('Preparar Datos del Mensaje').item.json.nombre_cliente }}",
+            "username_telegram": "={{ $('Preparar Datos del Mensaje').item.json.username }}",
+            "chat_id": "={{ $('Preparar Datos del Mensaje').item.json.chat_id }}",
+            "mensaje_original": "={{ $('Preparar Datos del Mensaje').item.json.mensaje }}",
+            "categoria": "={{ $('Parsear Clasificación').item.json.categoria }}",
+            "urgencia": "={{ $('Parsear Clasificación').item.json.urgencia }}",
+            "resumen_ia": "={{ $('Parsear Clasificación').item.json.resumen_llm }}",
+            "respuesta_enviada": "={{ $('Parsear Respuesta Seguimiento').item.json.respuesta_cliente }}",
+            "accion_interna": "={{ $('Parsear Respuesta Seguimiento').item.json.numero_pedido }}",
+            "happy_path": "SI",
+            "estado": "🟢 PENDIENTE VERIFICACION"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "canal",
+              "displayName": "canal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nombre_cliente",
+              "displayName": "nombre_cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "username_telegram",
+              "displayName": "username_telegram",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "mensaje_original",
+              "displayName": "mensaje_original",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "categoria",
+              "displayName": "categoria",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "urgencia",
+              "displayName": "urgencia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "resumen_ia",
+              "displayName": "resumen_ia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "respuesta_enviada",
+              "displayName": "respuesta_enviada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "accion_interna",
+              "displayName": "accion_interna",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "happy_path",
+              "displayName": "happy_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "47a4afe2-06e6-4a14-a63d-5b2b8216d1ac",
+      "name": "Sheets — Log Seguimiento",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        208
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xpJOgnVZ0DROYL2p",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "CONFIGURACIÓN: Creá una hoja llamada 'Logs' con estas columnas: fecha, canal, nombre_cliente, username_telegram, chat_id, mensaje_original, categoria, urgencia, resumen_ia, respuesta_enviada, accion_interna, estado, happy_path"
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=🚨 RECLAMO — {{ $('Parsear Clasificación').item.json.urgencia }}\n\n👤 Cliente: {{ $('Preparar Datos del Mensaje').item.json.nombre_cliente }} ({{ $('Preparar Datos del Mensaje').item.json.username }})\n\n💬 Mensaje: {{ $('Preparar Datos del Mensaje').item.json.mensaje }}\n\n📋 Resumen IA: {{ $('Parsear Clasificación').item.json.resumen_llm }}\n\n✅ Respuesta enviada al cliente: {{ $('Parsear Respuesta Reclamo').item.json.respuesta_cliente }}\n\n⚙️ Acción requerida: {{ $('Parsear Respuesta Reclamo').item.json.accion_interna }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        848,
+        -496
+      ],
+      "id": "a9dbac8a-a7cb-43d4-ad81-5bf4685249c7",
+      "name": "Notificación reclamo",
+      "webhookId": "2f1e11a4-5a1b-4a48-92ce-1393259a8059",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "hVd6CS0PfXlXCZDS",
+          "name": "Discord Api Key reclamo"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=💬 **CONSULTA PREVENTA**\n\n👤 Cliente: {{ $('Preparar Datos del Mensaje').item.json.nombre_cliente }} ({{ $('Preparar Datos del Mensaje').item.json.username }})\n\n💬 Mensaje: {{ $('Preparar Datos del Mensaje').item.json.mensaje }}\n\n📋 Tipo de consulta: {{ $('Parsear Respuesta Preventa').item.json.tipo_consulta }}\n\n🔩 Chasis proporcionado: {{ $('Parsear Respuesta Preventa').item.json.numero_chasis }}\n\n📝 Datos faltantes: {{ $('Parsear Respuesta Preventa').item.json.datos_faltantes }}\n\n✅ Respuesta enviada al cliente: {{ $('Parsear Respuesta Preventa').item.json.respuesta_cliente }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        864,
+        -128
+      ],
+      "id": "2d4084bc-beca-44c9-86dc-da61dfd0702e",
+      "name": "Notificación preventa",
+      "webhookId": "6e4846ab-91b2-4a2d-a29a-a9f95ac31c60",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "W4xrXSwO63XxU2OP",
+          "name": "Discord Api key preventa"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=📦 **SEGUIMIENTO DE PEDIDO**\n\n👤 Cliente: {{ $('Preparar Datos del Mensaje').item.json.nombre_cliente }} ({{ $('Preparar Datos del Mensaje').item.json.username }})\n\n💬 Mensaje: {{ $('Preparar Datos del Mensaje').item.json.mensaje }}\n\n🔢 Número de pedido: {{ $('Parsear Respuesta Seguimiento').item.json.numero_pedido }}\n\n✅ Respuesta enviada al cliente: {{ $('Parsear Respuesta Seguimiento').item.json.respuesta_cliente }}\n\n⏱ Verificar estado del envío antes de 2 horas hábiles.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        864,
+        208
+      ],
+      "id": "67776c33-beb9-45b7-994d-161eb95bc88c",
+      "name": "Notificación seguimiento",
+      "webhookId": "36f0c351-d782-4899-a497-7948a901c799",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "jzC2W3qd04c1mipR",
+          "name": "Discord Api key seguimiento"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=⚠️ **MENSAJE NO CLASIFICADO — Revisión manual requerida**\n\n👤 Cliente: {{ $('Preparar Datos del Mensaje').item.json.nombre_cliente }} ({{ $('Preparar Datos del Mensaje').item.json.username }})\n\n💬 Mensaje original: {{ $('Preparar Datos del Mensaje').item.json.mensaje }}\n\n🤖 Respuesta cruda del LLM: {{ $('Parsear Clasificación').item.json.raw_llm_clasificador }}\n\n✅ Respuesta enviada al cliente: Hola! 👋 Recibimos tu mensaje y lo estamos procesando. Un miembro de nuestro equipo te responderá a la brevedad. ¡Gracias por contactarte con Ford Repuestos!",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        288,
+        576
+      ],
+      "id": "dc12203e-54d0-47f7-8418-23230afb6790",
+      "name": "Notificación fallback",
+      "webhookId": "3cafc8f2-ffa2-4efd-98a2-414ba910e2e2",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "KLzbcGghV4kxw3Dy",
+          "name": "Discord Api key fallback"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nconst execution = data.execution || {};\nconst workflow = data.workflow || {};\nconst error = execution.error || {};\n\nconst nodo_fallo = execution.lastNodeExecuted || 'Desconocido';\nconst mensaje_error = error.message || error.description || 'Sin descripción de error';\nconst tipo_error = error.name || error.type || 'Error desconocido';\nconst stack = (error.stack || '').substring(0, 500);\n\nlet severidad = 'MEDIA';\nlet emoji = '🟡';\n\nif (nodo_fallo.includes('LLM') || nodo_fallo.includes('Groq')) {\n  severidad = 'ALTA';\n  emoji = '🔴';\n} else if (nodo_fallo.includes('Telegram')) {\n  severidad = 'ALTA';\n  emoji = '🔴';\n} else if (nodo_fallo.includes('Sheets')) {\n  severidad = 'MEDIA';\n  emoji = '🟡';\n} else if (nodo_fallo.includes('Trigger')) {\n  severidad = 'CRITICA';\n  emoji = '💀';\n}\n\nconst fecha = new Date().toISOString();\nconst fecha_legible = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });\n\nreturn {\n  fecha,\n  fecha_legible,\n  workflow_nombre: workflow.name || 'Ford Repuestos — Triage Telegram',\n  workflow_id: workflow.id || '',\n  execution_id: execution.id || '',\n  nodo_fallo,\n  tipo_error,\n  mensaje_error,\n  severidad,\n  emoji,\n  stack_trace: stack,\n  resuelto: 'NO'\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1216,
+        592
+      ],
+      "id": "f56cd52c-3d98-4647-8479-938f221c15f8",
+      "name": "Parsear Error Tecnico"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8",
+          "mode": "list",
+          "cachedResultName": "base bot escobar ford",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1047439786,
+          "mode": "list",
+          "cachedResultName": "Errores_Tecnicos ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12LH56KJ9eGYIYMvtcbJ4BvlPiFpag3REyEAue6Hl7M8/edit#gid=1047439786"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha": "={{ $json.fecha_legible }}",
+            "workflow": "={{ $json.workflow_nombre }}",
+            "execution_id": "={{ $json.execution_id }}",
+            "nodo_que_fallo": "={{ $json.nodo_fallo }}",
+            "tipo_error": "={{ $json.tipo_error }}",
+            "mensaje_error": "={{ $json.mensaje_error }}",
+            "severidad": "={{ $json.severidad }}",
+            "stack_trace": "={{ $json.stack_trace }}",
+            "resuelto": "NO"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "workflow",
+              "displayName": "workflow",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nodo_que_fallo",
+              "displayName": "nodo_que_fallo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_error",
+              "displayName": "tipo_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "mensaje_error",
+              "displayName": "mensaje_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "severidad",
+              "displayName": "severidad",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stack_trace",
+              "displayName": "stack_trace",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "resuelto",
+              "displayName": "resuelto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -992,
+        592
+      ],
+      "id": "7e23ec4e-19a5-467e-b676-03d3465dfcdf",
+      "name": "Sheet — Error Tecnico",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xpJOgnVZ0DROYL2p",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "={{ $json.emoji }} **ERROR TÉCNICO — {{ $json.severidad }}**\n\n⚙️ Nodo que falló: {{ $json.nodo_fallo }}\n❌ Tipo: {{ $json.tipo_error }}\n📋 Descripción: {{ $json.mensaje_error }}\n🕐 Fecha: {{ $json.fecha_legible }}\n🔍 Execution ID: {{ $json.execution_id }}\n\n_Revisá el log completo en la hoja Errores_Tecnicos de Google Sheets._",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        -816,
+        592
+      ],
+      "id": "f6764181-1a8a-4e5d-9459-fbae5364f6a7",
+      "name": "Notificacion Error Tecnico",
+      "webhookId": "b34d3a02-9756-41bd-9384-246245ec0404",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "cpXd1p4ir3vncyxU",
+          "name": "Discord Api key errores tecnicos"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Preparar Datos del Mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Datos del Mensaje": {
+      "main": [
+        [
+          {
+            "node": "¿Mensaje válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Mensaje válido?": {
+      "main": [
+        [
+          {
+            "node": "LLM #1 — Clasificador",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram — Mensaje Vacío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq — Llama3 Clasificador": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM #1 — Clasificador",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM #1 — Clasificador": {
+      "main": [
+        [
+          {
+            "node": "Parsear Clasificación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Clasificación": {
+      "main": [
+        [
+          {
+            "node": "Switch — Tipo de Mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch — Tipo de Mensaje": {
+      "main": [
+        [
+          {
+            "node": "LLM #2A — Respuesta Reclamo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM #2B — Respuesta Preventa",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM #2C — Respuesta Seguimiento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sheets — Log Error/Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq — Llama3 Reclamo": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM #2A — Respuesta Reclamo",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM #2A — Respuesta Reclamo": {
+      "main": [
+        [
+          {
+            "node": "Parsear Respuesta Reclamo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Respuesta Reclamo": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Responder a Cliente (Reclamo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram — Responder a Cliente (Reclamo)": {
+      "main": [
+        [
+          {
+            "node": "Sheets — Log Reclamo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets — Log Reclamo": {
+      "main": [
+        [
+          {
+            "node": "Notificación reclamo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq — Llama3 Preventa": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM #2B — Respuesta Preventa",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM #2B — Respuesta Preventa": {
+      "main": [
+        [
+          {
+            "node": "Parsear Respuesta Preventa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram — Responder a Cliente (Preventa)": {
+      "main": [
+        [
+          {
+            "node": "Sheets — Log Preventa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq — Llama3 Seguimiento": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM #2C — Respuesta Seguimiento",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM #2C — Respuesta Seguimiento": {
+      "main": [
+        [
+          {
+            "node": "Parsear Respuesta Seguimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Respuesta Seguimiento": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Responder a Cliente (Seguimiento)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram — Responder a Cliente (Seguimiento)": {
+      "main": [
+        [
+          {
+            "node": "Sheets — Log Seguimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets — Log Error/Fallback": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Responder a Cliente (Fallback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram — Responder a Cliente (Fallback)": {
+      "main": [
+        [
+          {
+            "node": "Notificación fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parsear Error Tecnico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Respuesta Preventa": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Responder a Cliente (Preventa)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets — Log Preventa": {
+      "main": [
+        [
+          {
+            "node": "Notificación preventa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets — Log Seguimiento": {
+      "main": [
+        [
+          {
+            "node": "Notificación seguimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Error Tecnico": {
+      "main": [
+        [
+          {
+            "node": "Sheet — Error Tecnico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet — Error Tecnico": {
+      "main": [
+        [
+          {
+            "node": "Notificacion Error Tecnico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "Zd8XXlQsxel4a0P5",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": -1
+  },
+  "versionId": "1459a4ce-c90a-4899-86b3-9cc6b18b2b9d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f2b3fc726010b940aedadbf536af3c9b49857fa847b1aeedb6dc9424e7fa1169"
+  },
+  "id": "Zd8XXlQsxel4a0P5",
+  "tags": [
+    {
+      "updatedAt": "2026-03-03T01:10:22.932Z",
+      "createdAt": "2026-03-03T01:10:22.932Z",
+      "id": "APfPhSP7COJxc05c",
+      "name": "telegram"
+    },
+    {
+      "updatedAt": "2026-03-03T00:47:02.730Z",
+      "createdAt": "2026-03-03T00:47:02.730Z",
+      "id": "Tp1pO2D0Ias10d1j",
+      "name": "proyecto-final"
+    },
+    {
+      "updatedAt": "2026-03-03T00:47:02.695Z",
+      "createdAt": "2026-03-03T00:47:02.695Z",
+      "id": "ghv6dR4Mwoc3q2Hl",
+      "name": "ford-repuestos"
+    },
+    {
+      "updatedAt": "2026-03-03T00:47:02.754Z",
+      "createdAt": "2026-03-03T00:47:02.754Z",
+      "id": "o51Jgzdu7Zdl7faX",
+      "name": "triage"
+    }
+  ]
+}
